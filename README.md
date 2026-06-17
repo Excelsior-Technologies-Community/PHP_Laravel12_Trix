@@ -428,8 +428,3 @@ PHP_Laravel12_Trix
 ---
 
 Your PHP_Laravel12_Trix Project is now ready!
-
-<<<<<<< HEAD
-
-=======
->>>>>>> development

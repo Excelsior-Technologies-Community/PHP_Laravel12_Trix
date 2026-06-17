@@ -60,6 +60,15 @@ input[type="text"]:focus{
     outline:none;
 }
 
+input[type="file"]{
+    width:100%;
+    padding:10px;
+    border:1px solid #dcdcdc;
+    border-radius:6px;
+    font-size:14px;
+    background:#fff;
+}
+
 .trix-editor{
     min-height:200px;
 }
@@ -88,6 +97,54 @@ input[type="text"]:focus{
     margin-bottom:20px;
 }
 
+.draft-banner{
+    background:#fff3cd;
+    color:#856404;
+    padding:12px 16px;
+    border-radius:6px;
+    margin-bottom:20px;
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+}
+
+.draft-banner button{
+    margin-top:0;
+    padding:8px 14px;
+    font-size:13px;
+}
+
+.btn-discard{
+    background:#dc3545;
+}
+
+.btn-discard:hover{
+    background:#c82333;
+}
+
+.counts-bar{
+    display:flex;
+    gap:20px;
+    margin-top:10px;
+    font-size:13px;
+    color:#666;
+}
+
+.draft-status{
+    font-size:12px;
+    color:#888;
+    margin-top:8px;
+}
+
+.image-preview{
+    display:none;
+    max-width:200px;
+    margin-top:10px;
+    border-radius:6px;
+    border:1px solid #dcdcdc;
+}
+
 </style>
 
 </head>
@@ -106,19 +163,43 @@ input[type="text"]:focus{
 </div>
 @endif
 
-<form method="POST" action="{{ route('posts.store') }}">
+<div id="draftBanner" class="draft-banner">
+<span>Draft found from <span id="draftTime"></span></span>
+<div>
+<button type="button" id="restoreDraftBtn" class="btn">Restore</button>
+<button type="button" id="discardDraftBtn" class="btn btn-discard">Discard</button>
+</div>
+</div>
+
+<form method="POST" action="{{ route('posts.store') }}" enctype="multipart/form-data">
 
 @csrf
 
 <label>Post Title</label>
 
-<input type="text" name="title" placeholder="Enter post title">
+<input type="text" name="title"  value="{{ old('title') }}" placeholder="Enter post title">
+
+<br><br>
+
+<label>Featured Image</label>
+
+<input type="file" name="featured_image" id="featuredImageInput" accept="image/*">
+
+<img id="imagePreview" class="image-preview" src="" alt="Preview">
 
 <br><br>
 
 <label>Post Content</label>
 
-@trix(\App\Models\Post::class, 'content')
+@trix(\App\Models\Post::class, 'content', ['disk' => 'public'])
+
+<div class="counts-bar">
+<span><span id="wordCount">0</span> words</span>
+<span><span id="charCount">0</span> characters</span>
+<span id="readingTime">0 min read</span>
+</div>
+
+<div id="draftStatus" class="draft-status"></div>
 
 <button type="submit" class="btn">
 Save Post
@@ -129,6 +210,101 @@ Save Post
 </div>
 
 </div>
+
+<script>
+
+const DRAFT_KEY = 'post_create_draft';
+const titleInput = document.querySelector('input[name="title"]');
+const trixEditor = document.querySelector('trix-editor');
+const wordCountEl = document.getElementById('wordCount');
+const charCountEl = document.getElementById('charCount');
+const readingTimeEl = document.getElementById('readingTime');
+const draftBanner = document.getElementById('draftBanner');
+const draftTimeEl = document.getElementById('draftTime');
+const draftStatusEl = document.getElementById('draftStatus');
+const imageInput = document.getElementById('featuredImageInput');
+const imagePreview = document.getElementById('imagePreview');
+
+let saveTimeout;
+
+function updateCounts() {
+    const text = trixEditor.innerText.trim();
+    const words = text.length ? text.split(/\s+/).length : 0;
+    const chars = text.length;
+    const minutes = Math.max(1, Math.ceil(words / 200));
+
+    wordCountEl.textContent = words;
+    charCountEl.textContent = chars;
+    readingTimeEl.textContent = words > 0 ? minutes + ' min read' : '0 min read';
+}
+
+function saveDraft() {
+    const draft = {
+        title: titleInput.value,
+        content: trixEditor.innerHTML,
+        savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    draftStatusEl.textContent = 'Draft saved at ' + new Date().toLocaleTimeString();
+}
+
+function scheduleSave() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(saveDraft, 800);
+}
+
+function loadDraft() {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+
+    const draft = JSON.parse(raw);
+    draftTimeEl.textContent = new Date(draft.savedAt).toLocaleString();
+    draftBanner.style.display = 'flex';
+
+    document.getElementById('restoreDraftBtn').onclick = function() {
+        titleInput.value = draft.title;
+        trixEditor.editor.loadHTML(draft.content);
+        draftBanner.style.display = 'none';
+        updateCounts();
+    };
+
+    document.getElementById('discardDraftBtn').onclick = function() {
+        localStorage.removeItem(DRAFT_KEY);
+        draftBanner.style.display = 'none';
+    };
+}
+
+titleInput.addEventListener('input', scheduleSave);
+
+trixEditor.addEventListener('trix-change', function() {
+    updateCounts();
+    scheduleSave();
+});
+
+trixEditor.addEventListener('trix-initialize', function() {
+    updateCounts();
+    loadDraft();
+});
+
+document.querySelector('form').addEventListener('submit', function() {
+    localStorage.removeItem(DRAFT_KEY);
+});
+
+imageInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) {
+        imagePreview.style.display = 'none';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        imagePreview.src = e.target.result;
+        imagePreview.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+});
+
+</script>
 
 </body>
 </html>

@@ -12,6 +12,10 @@
 
         <h2 class="text-2xl font-bold mb-4">📄 Post Details</h2>
 
+        @if($post->featured_image_url)
+            <img src="{{ $post->featured_image_url }}" class="w-full max-h-96 object-cover rounded mb-4">
+        @endif
+
         <p class="mb-3"><strong>ID:</strong> {{ $post->id }}</p>
         <p class="mb-3"><strong>Title:</strong> {{ $post->title }}</p>
 
